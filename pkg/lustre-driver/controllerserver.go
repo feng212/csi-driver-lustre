@@ -1,24 +1,11 @@
-/*
-Copyright 2019 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package lustre_driver
 
 import (
 	"context"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -66,6 +53,20 @@ type controllerService struct {
 }
 
 func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	klog.V(4).InfoS("CreateVolume: called", "args", *req)
+	volName := req.GetName()
+	if len(volName) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume name not provided")
+	}
+	volCaps := req.GetVolumeCapabilities()
+	if len(volCaps) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume capabilities not provided")
+	}
+	// create a new volume with idempotency
+	volParam := req.GetParameters()
+	subnetId := volParam[volumeParamsSubnetId]
+	securityGroupIds := volParam[volumeParamsSecurityGroupIds]
+
 	return nil, nil
 }
 func (cs *controllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
