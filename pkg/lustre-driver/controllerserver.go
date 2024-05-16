@@ -62,6 +62,12 @@ func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVo
 	if len(volCaps) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume capabilities not provided")
 	}
+	//// check if a request is already in-flight
+	//if ok := cs.inFlight.Insert(volName); !ok {
+	//	msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
+	//	return nil, status.Error(codes.Aborted, msg)
+	//}
+	//defer d.inFlight.Delete(volName)
 	// create a new volume with idempotency
 	volParam := req.GetParameters()
 	subnetId := volParam[volumeParamsSubnetId]
