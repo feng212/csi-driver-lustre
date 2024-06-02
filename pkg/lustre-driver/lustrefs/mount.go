@@ -1,4 +1,4 @@
-package lustre_driver
+package lustrefs
 
 import (
 	"k8s.io/mount-utils"
@@ -21,7 +21,6 @@ func newNodeMounter() (Mounter, error) {
 		Interface: mount.New(""),
 	}, nil
 }
-
 func (n NodeMounter) IsCorruptedMnt(err error) bool {
 	return mount.IsCorruptedMnt(err)
 }
