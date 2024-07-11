@@ -2,16 +2,16 @@
 <project version="4">
   <component name="RemoteTargetsManager">
     <targets>
-      <target name="root@192.168.136.12:22" type="ssh/sftp" uuid="005408cc-e8e6-48e9-9f3f-f38d1acbb1f2">
+      <target name="root@172.16.100.90:22" type="ssh/sftp" uuid="dc89c8cc-9be0-496d-aaa1-42aba8c023d8">
         <config>
-          <option name="projectRootOnTarget" value="/root/csi-driver-lustre" />
-          <option name="serverName" value="root@192.168.136.12:22 agent" />
+          <option name="projectRootOnTarget" value="/home/csi-driver-lustre" />
+          <option name="serverName" value="root@172.16.100.90:22 password" />
         </config>
         <ContributedStateBase type="GoLanguageRuntime">
           <config>
-            <option name="goPath" value="/usr/local/go/bin" />
-            <option name="goRoot" value="/usr/local/go/bin/go" />
-            <option name="goVersion" value="/bin/bash: /usr/bin/which: no go in (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin): No such file or directory" />
+            <option name="goPath" value="/root/go" />
+            <option name="goRoot" value="/usr/bin/go" />
+            <option name="goVersion" value="go1.21.11 (Red Hat 1.21.11-1.module+el8.10.0+1831+fc70fba6) linux/amd64" />
           </config>
         </ContributedStateBase>
       </target>
