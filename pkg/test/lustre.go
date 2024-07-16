@@ -21,7 +21,7 @@ type Lustre struct {
 
 func (l *Lustre) LustreMount() error {
 	if l.MountName == "" {
-		return status.Error(codes.InvalidArgument, "MountName is a required parameter")
+		return status.Error(codes.InvalidArgument, "ServerName is a required parameter")
 	}
 	if l.MountPoint == "" {
 		return status.Error(codes.InvalidArgument, "MountPoint is a required parameter")

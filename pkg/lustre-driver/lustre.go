@@ -11,8 +11,9 @@ const (
 	// The base directory must be a direct child of the root directory.
 	// The root directory is omitted from the string, for example:
 	//     "base" instead of "/base"
+	paramBaseDir         = "base_dir"
 	paramSubDir          = "subdir"
-	paramStorageType     = "lustre"
+	paramStorageType     = "wistor"
 	paramDIRPid          = "projectId"
 	paramDIRUid          = "Uid"
 	pvcNameKey           = "csi.storage.k8s.io/pvc/name"

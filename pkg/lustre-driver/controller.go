@@ -10,7 +10,16 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	GiB = 1024 * 1024 * 1024
+
+	volumeContextServerName = "servername"
+	volumeContextMountName  = "mountname"
+	volumeContextFsName     = "fstype"
+)
+
 var (
+
 	// volumeCaps represents how the volume could be accessed.
 	volumeCaps = []csi.VolumeCapability_AccessMode{
 		{
@@ -49,11 +58,17 @@ func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVo
 		return nil, status.Error(codes.InvalidArgument, "Volume capabilities not supported")
 	}
 	// check if a request is already in-flight
-	//if ok := cs.inFlight.Insert(volName); !ok {
-	//	msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
-	//	return nil, status.Error(codes.Aborted, msg)
-	//}
-	//defer cs.inFlight.Delete(volName)
+	if ok := cs.inFlight.Insert(volName); !ok {
+		msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
+		return nil, status.Error(codes.Aborted, msg)
+	}
+	defer cs.inFlight.Delete(volName)
+
+	reqCapacity := req.GetCapacityRange()
+	if reqCapacity == nil {
+		cs.lustre.CapacityGiB = lustrefs.DefaultVolumeSize
+
+	}
 	// create a new volume with idempotency
 	volParam := req.GetParameters()
 	if volParam == nil {
@@ -61,10 +76,13 @@ func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVo
 	}
 	cs.lustre.StorageType = paramStorageType
 	if val, ok := volParam[paramServer]; ok {
-		cs.lustre.MountName = val
+		cs.lustre.ServerName = val
+	}
+	if val, ok := volParam[paramBaseDir]; ok {
+		cs.lustre.MountPoint = val
 	}
 	if val, ok := volParam[paramSubDir]; ok {
-		cs.lustre.MountPoint = val
+		cs.lustre.SubDir = val
 	}
 	if val, ok := volParam[paramDIRPid]; ok {
 		cs.lustre.ProjectId = val
@@ -72,12 +90,12 @@ func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVo
 	if val, ok := volParam[paramDIRUid]; ok {
 		cs.lustre.Uid = val
 	}
-	err := cs.lustre.LustreMount()
+	err := cs.lustre.CreateFs()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount nfs server: %v", err.Error())
 	}
 
-	return nil, nil
+	return newCreateVolumeResponse(cs.lustre), nil
 }
 func (cs *controllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	return nil, nil
@@ -139,4 +157,21 @@ func isValidVolumeCapabilities(caps []*csi.VolumeCapability) error {
 		}
 	}
 	return nil
+}
+
+func newCreateVolumeResponse(l *lustrefs.Lustre) *csi.CreateVolumeResponse {
+	return &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      l.FSId,
+			CapacityBytes: GiBToBytes(l.CapacityGiB),
+			VolumeContext: map[string]string{
+				volumeContextFsName:     l.StorageType,
+				volumeContextServerName: l.ServerName,
+				volumeContextMountName:  l.MountPoint + "/" + l.SubDir,
+			},
+		},
+	}
+}
+func GiBToBytes(volumeSizeGiB int64) int64 {
+	return volumeSizeGiB * GiB
 }

@@ -4,15 +4,16 @@ import (
 	"context"
 	"csi-driver-lustre/pkg/lustre-driver/lustrefs"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"k8s.io/mount-utils"
 	"reflect"
 	"testing"
 )
 
 func initTestController(_ *testing.T) *controllerService {
-	inflight := &lustrefs.InFlight{}
-	lustre := &lustrefs.Lustre{}
+
+	lustre := &lustrefs.Lustre{Interface: mount.New("")}
 	controller := &controllerService{
-		inflight,
+		lustrefs.NewInFlight(),
 		lustre,
 	}
 	return controller
@@ -40,9 +41,10 @@ func TestCreateVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					paramServer:      "192.168.136.11@tcp:/demo",
-					paramSubDir:      "/mnt",
-					paramStorageType: "lustre",
+					paramServer:      "10.10.8.131@o2ib:/testfs",
+					paramBaseDir:     "/mnt/testfs",
+					paramSubDir:      "34fsdf-df6er2-3",
+					paramStorageType: "wistor",
 				},
 			},
 		},
@@ -58,9 +60,7 @@ func TestCreateVolume(t *testing.T) {
 			if err != nil {
 				t.Errorf("test %q failed: %v", test.name, err)
 			}
-			if err == nil {
-				t.Errorf("test %q failed; got success", test.name)
-			}
+
 			if !reflect.DeepEqual(resp, test.resp) {
 				t.Errorf("test %q failed: got resp %+v, expected %+v", test.name, resp, test.resp)
 			}
