@@ -11,11 +11,10 @@ import (
 )
 
 const (
-	GiB = 1024 * 1024 * 1024
-
+	GiB                     = 1024 * 1024 * 1024
+	volumeContextFsTYPE     = "fstype"
 	volumeContextServerName = "servername"
 	volumeContextMountName  = "mountname"
-	volumeContextFsName     = "fstype"
 )
 
 var (
@@ -74,7 +73,7 @@ func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVo
 	if volParam == nil {
 		volParam = make(map[string]string)
 	}
-	cs.lustre.StorageType = paramStorageType
+	cs.lustre.StorageType = paramFsType
 	if val, ok := volParam[paramServer]; ok {
 		cs.lustre.ServerName = val
 	}
@@ -165,7 +164,7 @@ func newCreateVolumeResponse(l *lustrefs.Lustre) *csi.CreateVolumeResponse {
 			VolumeId:      l.FSId,
 			CapacityBytes: GiBToBytes(l.CapacityGiB),
 			VolumeContext: map[string]string{
-				volumeContextFsName:     l.StorageType,
+				volumeContextFsTYPE:     l.StorageType,
 				volumeContextServerName: l.ServerName,
 				volumeContextMountName:  l.MountPoint + "/" + l.SubDir,
 			},
