@@ -8,11 +8,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
 	"os"
 )
 
 type nodeService struct {
 	inFlight *lustrefs.InFlight
+	mounter  mount.Interface
 }
 
 const VolumeOperationAlreadyExists = "An operation with the given volume=%q and target=%q is already in progress"
@@ -55,7 +57,7 @@ func (ns *nodeService) NodePublishVolume(ctx context.Context, req *csi.NodePubli
 	}()
 
 	//mounted, err := ns.isMounted(source, target)
-	if err := d.mounter.Mount(source, target, "lustre", mountOptions); err != nil {
+	if err := ns.mounter.Mount(server, targetPath, "wistor", nil); err != nil {
 		os.Remove(target)
 		return nil, status.Errorf(codes.Internal, "Could not mount %q at %q: %v", source, target, err)
 	}
