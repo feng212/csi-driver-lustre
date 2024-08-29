@@ -2,6 +2,7 @@ package lustre
 
 import (
 	"context"
+	"csi-driver-lustre/pkg/lustre-driver/lustrefs"
 	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -55,7 +56,39 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
 		return nil, status.Error(codes.Aborted, msg)
 	}
+	reqCapacity := req.GetCapacityRange()
+	if reqCapacity == nil {
+		cs.lustre.CapacityGiB = lustrefs.DefaultVolumeSize
 
+	}
+	// create a new volume with idempotency
+	volParam := req.GetParameters()
+	if volParam == nil {
+		volParam = make(map[string]string)
+	}
+	cs.lustre.StorageType = paramFsType
+	if val, ok := volParam[paramServer]; ok {
+		cs.lustre.ServerName = val
+	}
+	if val, ok := volParam[paramBaseDir]; ok {
+		cs.lustre.MountPoint = val
+	}
+	if val, ok := volParam[paramSubDir]; ok {
+		cs.lustre.SubDir = val
+	}
+	if val, ok := volParam[paramDIRPid]; ok {
+		cs.lustre.ProjectId = val
+	}
+	if val, ok := volParam[paramDIRUid]; ok {
+		cs.lustre.Uid = val
+	}
+	err := cs.lustre.CreateFs()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to mount nfs server: %v", err.Error())
+	}
+
+	return newCreateVolumeResponse(cs.lustre), nil
+}
 	return nil, nil
 }
 func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
