@@ -166,7 +166,7 @@ func newCreateVolumeResponse(l *lustrefs.Lustre) *csi.CreateVolumeResponse {
 			VolumeContext: map[string]string{
 				volumeContextFsTYPE:     l.StorageType,
 				volumeContextServerName: l.ServerName,
-				volumeContextMountName:  l.MountPoint + "/" + l.SubDir,
+				volumeContextMountName:  l.SubDir,
 			},
 		},
 	}

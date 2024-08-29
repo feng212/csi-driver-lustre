@@ -10,6 +10,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
 	"os"
+	"strings"
 )
 
 type nodeService struct {
@@ -33,9 +34,14 @@ func (ns *nodeService) NodePublishVolume(ctx context.Context, req *csi.NodePubli
 	}
 	context := req.GetVolumeContext()
 	server := context[volumeContextServerName]
+	baseDir := context[volumeContextMountName]
 	if len(server) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "server is not provided")
 	}
+	if len(baseDir) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "subdir is not provided")
+	}
+	source := fmt.Sprintf("%s/%s", server, baseDir)
 	targetPath := req.GetTargetPath()
 	if len(targetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Target path not provided")
@@ -55,13 +61,24 @@ func (ns *nodeService) NodePublishVolume(ctx context.Context, req *csi.NodePubli
 		klog.V(4).InfoS("NodePublishVolume: volume operation finished", "rpcKey", rpcKey)
 		ns.inFlight.Delete(rpcKey)
 	}()
+	mountOptions := volCap.GetMount().GetMountFlags()
+	if req.GetReadonly() {
+		mountOptions = append(mountOptions, "ro")
+	}
 
 	//mounted, err := ns.isMounted(source, target)
-	if err := ns.mounter.Mount(server, targetPath, "wistor", nil); err != nil {
-		os.Remove(target)
-		return nil, status.Errorf(codes.Internal, "Could not mount %q at %q: %v", source, target, err)
+	err := ns.mounter.Mount(source, targetPath, "wistor", mountOptions)
+	if err != nil {
+		if os.IsPermission(err) {
+			return nil, status.Error(codes.PermissionDenied, err.Error())
+		}
+		if strings.Contains(err.Error(), "invalid argument") {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
 	}
-	klog.V(5).InfoS("NodePublishVolume: was mounted", "target", target)
+
+	//klog.V(5).InfoS("NodePublishVolume: was mounted", "target", target)
 	return nil, nil
 }
 func (ns *nodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
