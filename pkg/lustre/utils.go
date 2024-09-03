@@ -1,9 +1,31 @@
 package lustre
 
 import (
+	"fmt"
 	"k8s.io/klog/v2"
+	"strings"
 	"sync"
 )
+
+const (
+	separator                       = "#"
+	deletes                         = "delete"
+	retain                          = "retain"
+	archive                         = "archive"
+	volumeOperationAlreadyExistsFmt = "An operation with the given Volume ID %s already exists"
+)
+
+var supportedOnDeleteValues = []string{"", deletes, retain, archive}
+
+func validateOnDeleteValue(onDelete string) error {
+	for _, v := range supportedOnDeleteValues {
+		if strings.EqualFold(v, onDelete) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid value %s for OnDelete, supported values are %v", onDelete, supportedOnDeleteValues)
+}
 
 type InFlight struct {
 	mux      *sync.Mutex
