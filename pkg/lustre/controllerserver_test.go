@@ -37,7 +37,7 @@ func TestCreateVolume(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					paramFsType:  "lustre",
-					paramServer:  "192.168.136.11@tcp:/lustre",
+					paramServer:  "172.16.100.189@tcp:/testfs",
 					paramBaseDir: "/mnt/testfs",
 				},
 			},

@@ -57,11 +57,11 @@ func (cs *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVo
 		return nil, status.Error(codes.InvalidArgument, "Volume capabilities not supported")
 	}
 	// check if a request is already in-flight
-	if ok := cs.inFlight.Insert(volName); !ok {
-		msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
-		return nil, status.Error(codes.Aborted, msg)
-	}
-	defer cs.inFlight.Delete(volName)
+	//if ok := cs.inFlight.Insert(volName); !ok {
+	//	msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
+	//	return nil, status.Error(codes.Aborted, msg)
+	//}
+	//defer cs.inFlight.Delete(volName)
 
 	reqCapacity := req.GetCapacityRange()
 	if reqCapacity == nil {

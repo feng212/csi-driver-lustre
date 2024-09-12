@@ -42,7 +42,7 @@ func TestCreateVolume(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					paramFsType:  "wistor",
-					paramServer:  "10.10.8.191@o2ib:/wistorfs",
+					paramServer:  "172.16.100.189@tcp:/testfs",
 					paramBaseDir: "/mnt/testfs",
 					paramSubDir:  "34fsdf-df6er2-3",
 				},

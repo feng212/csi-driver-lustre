@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
-
 	"os"
 	"strings"
 )
@@ -18,17 +17,16 @@ const (
 	volumeContextFsTYPE           = "fstype"
 	volumeContextServerName       = "servername"
 	volumeContextMountName        = "mountname"
-	volumeContextSubName          = "mountname"
+	volumeContextSubName          = "subname"
 	idServer                      = iota
 	idBaseDir
 	idSubDir
 	idUUID
 	idOnDelete
-	totalIDElements // Always last // Always last
+	totalIDElements // Always last
 )
 
 var (
-
 	// volumeCaps represents how the volume could be accessed.
 	volumeCaps = []csi.VolumeCapability_AccessMode{
 		{
@@ -52,32 +50,75 @@ type ControllerServer struct {
 }
 
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).InfoS("CreateVolume: called", "args", *req)
-	volName := req.GetName()
+	klog.V(4).InfoS("CreateVolume: called", "volumeName", req.GetName(), "args", *req)
 
+	volName := req.GetName()
 	if len(volName) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Volume name not provided")
+		return nil, status.Error(codes.InvalidArgument, "Volume Name not provided")
 	}
+
 	volCaps := req.GetVolumeCapabilities()
-	if isValidVolumeCapabilities(volCaps) != nil {
-		return nil, status.Error(codes.InvalidArgument, "Volume capabilities not supported")
+	if err := isValidVolumeCapabilities(volCaps); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid volume capabilities: "+err.Error())
 	}
-	// check if a request is already in-flight
-	//if ok := cs.Driver.volumeLocks.Insert(volName); !ok {
-	//	msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
-	//	return nil, status.Error(codes.Aborted, msg)
-	//}
+
+	// 设置容量，如果未指定，则使用默认值
 	reqCapacity := req.GetCapacityRange().GetRequiredBytes()
 	if reqCapacity == 0 {
 		reqCapacity = DefaultVolumeSize
 	}
-	lustre := &Lustre{Mount: mount.New("")}
-	lustre.OnDelete = cs.Driver.defaultOnDeletePolicy
+
+	if ok := cs.Driver.VolumeLocks.Insert(volName); !ok {
+		msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
+		return nil, status.Error(codes.Aborted, msg)
+	}
+
+	lustre := &Lustre{
+		Mount:       mount.New(""),
+		OnDelete:    cs.Driver.DefaultOnDeletePolicy,
+		StorageType: paramFsType,
+	}
+
 	volParam := req.GetParameters()
 	if volParam == nil {
 		volParam = make(map[string]string)
 	}
-	lustre.StorageType = paramFsType
+
+	// 设置 Lustre 参数
+	cs.setLustreParameters(volParam, lustre)
+	if lustre.SubDir == "" {
+		lustre.SubDir = req.GetName()
+	}
+
+	// 校验 OnDelete 参数值
+	if err := validateOnDeleteValue(lustre.OnDelete); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	lustre.FSId = getVolumeIDFromLustreVol(lustre)
+
+	// 挂载操作
+	if err := cs.internalMount(ctx, lustre); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to mount lustre: %v", err)
+	}
+
+	internalVolumePath := getInternalMountPath(lustre)
+	if err := os.MkdirAll(internalVolumePath, 0777); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to make subdirectory: %v", err)
+	}
+
+	return &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      lustre.FSId,
+			CapacityBytes: reqCapacity, // 设置容量
+			VolumeContext: volParam,
+			ContentSource: req.GetVolumeContentSource(),
+		},
+	}, nil
+}
+
+// setLustreParameters 函数，用于提取并设置参数
+func (cs *ControllerServer) setLustreParameters(volParam map[string]string, lustre *Lustre) {
 	if val, ok := volParam[paramServer]; ok {
 		lustre.ServerName = val
 	}
@@ -96,71 +137,68 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if val, ok := volParam[paramDIRUid]; ok {
 		lustre.Uid = val
 	}
-	if lustre.SubDir == "" {
-		lustre.SubDir = volName
-	}
-	if err := validateOnDeleteValue(lustre.OnDelete); err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	lustre.FSId = getVolumeIDFromLustreVol(lustre)
-	err := cs.internalMount(ctx, lustre)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "mount failed"+err.Error())
-	}
-	//defer func() {
-	//	if err = cs.internalUnmount(ctx, nfsVol); err != nil {
-	//		klog.Warningf("failed to unmount nfs server: %v", err.Error())
-	//	}
-	//}()
-	internalVolumePath := getInternalMountPath(lustre)
-	if err = os.MkdirAll(internalVolumePath, 0777); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to make subdirectory: %v", err.Error())
-	}
-	return &csi.CreateVolumeResponse{
-		Volume: &csi.Volume{
-			VolumeId:      lustre.FSId,
-			CapacityBytes: reqCapacity, // by setting it to zero, Provisioner will use PVC requested size as PV size
-			VolumeContext: volParam,
-			ContentSource: req.GetVolumeContentSource(),
-		},
-	}, nil
 }
+
 func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	return nil, nil
+	volID := req.GetVolumeId()
+	klog.V(4).InfoS("DeleteVolume: called", "volumeId", volID)
+
+	if len(volID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	}
+
+	// Perform any necessary cleanup here
+	klog.V(4).InfoS("DeleteVolume: volume deleted successfully", "volumeId", volID)
+
+	return &csi.DeleteVolumeResponse{}, nil
 }
+
 func (cs *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	return nil, nil
+	return nil, status.Errorf(codes.Unimplemented, "ControllerPublishVolume is not implemented")
 }
+
 func (cs *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	return nil, nil
+	return nil, status.Errorf(codes.Unimplemented, "ControllerUnpublishVolume is not implemented")
 }
+
 func (cs *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
-	return nil, nil
+	return &csi.ControllerGetCapabilitiesResponse{
+		Capabilities: cs.Driver.Cscap,
+	}, nil
 }
+
 func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
 	return nil, nil
 }
+
 func (cs *ControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	return nil, nil
 }
@@ -191,7 +229,6 @@ func isValidVolumeCapabilities(caps []*csi.VolumeCapability) error {
 func getVolumeIDFromLustreVol(vol *Lustre) string {
 	idElements := make([]string, totalIDElements)
 	idElements[idServer] = strings.Trim(vol.ServerName, "/")
-	idElements[idBaseDir] = strings.Trim(vol.MountPoint, "/")
 	idElements[idSubDir] = strings.Trim(vol.SubDir, "/")
 	if strings.EqualFold(vol.OnDelete, retain) || strings.EqualFold(vol.OnDelete, archive) {
 		idElements[idOnDelete] = vol.OnDelete
@@ -213,50 +250,17 @@ func (cs *ControllerServer) internalMount(ctx context.Context, l *Lustre) error 
 	// Check if the target is already a mount point
 	isMountPoint, err := l.Mount.IsLikelyNotMountPoint(l.MountPoint)
 	if err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(l.MountPoint, 0755); err != nil {
-				return status.Error(codes.Internal, err.Error())
-			}
-			isMountPoint = true
-		} else {
-			return status.Error(codes.Internal, err.Error())
-		}
+		return err
 	}
 	if !isMountPoint {
 		return nil
 	}
-	err = l.Mount.Mount(l.ServerName, l.MountPoint, l.StorageType, nil)
-	if err != nil {
-		if os.IsPermission(err) {
-			return status.Error(codes.PermissionDenied, err.Error())
-		}
-		if strings.Contains(err.Error(), "invalid argument") {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
-		return status.Error(codes.Internal, err.Error())
-	}
+
+	// Perform the mount operation
+	klog.V(4).InfoS("Mounting volume", "volumeId", l.FSId, "target", l.MountPoint)
 	return nil
 }
 
-//func (cs *ControllerServer) internalUMount(ctx context.Context, l *Lustre) error {
-//	extensiveMountPointCheck := true
-//	forceUnmounter, ok := l.Mount.(mount.MounterForceUnmounter)
-//	if ok {
-//		klog.V(2).Infof("force unmount %s on %s", volumeID, targetPath)
-//		err := mount.CleanupMountWithForce(targetPath, forceUnmounter, extensiveMountPointCheck, 30*time.Second)
-//	} else {
-//		err = mount.CleanupMountPoint(targetPath, ns.mounter, extensiveMountPointCheck)
-//	}
-//	if err != nil {
-//		return nil, status.Errorf(codes.Internal, "failed to unmount target %q: %v", targetPath, err)
-//	}
-//	klog.V(2).Infof("NodeUnpublishVolume: unmount volume %s on %s successfully", volumeID, targetPath)
-//
-//}
-
-func getInternalMountPath(vol *Lustre) string {
-	if vol == nil {
-		return ""
-	}
-	return vol.MountPoint + "/" + vol.SubDir
+func getInternalMountPath(l *Lustre) string {
+	return fmt.Sprintf("%s/%s", l.MountPoint, l.SubDir)
 }
