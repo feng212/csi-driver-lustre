@@ -83,11 +83,15 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if volParam == nil {
 		volParam = make(map[string]string)
 	}
+	if _, ok := volParam[paramBaseDir]; !ok {
+		volParam[paramServer] = cs.Driver.WorkingMountDir
+	}
 
 	// 设置 Lustre 参数
 	cs.setLustreParameters(volParam, lustre)
 	if lustre.SubDir == "" {
 		lustre.SubDir = req.GetName()
+		volParam["subdir"] = lustre.SubDir
 	}
 
 	// 校验 OnDelete 参数值

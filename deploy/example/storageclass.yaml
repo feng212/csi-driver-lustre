@@ -1,0 +1,10 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: lustre-sc
+provisioner: lustre.csi.k8s.io
+parameters:
+  server: <lustre-server-ip>
+  base_dir: /base/path
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

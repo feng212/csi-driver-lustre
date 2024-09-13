@@ -2,6 +2,7 @@ package lustre
 
 import (
 	"context"
+	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -55,6 +56,14 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if !ok || len(serverName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "servername not provided in volume context")
 	}
+	subName, ok := volumeContext["subdir"]
+	if !ok || len(subName) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "subName not provided in volume context")
+	}
+	source := ""
+	if subName != "" {
+		source = fmt.Sprintf("%s/%s", serverName, subName)
+	}
 
 	targetPath := req.GetTargetPath()
 
@@ -80,8 +89,8 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	// 执行挂载操作
-	klog.V(4).InfoS("Mounting volume", "source", serverName, "targetPath", targetPath, "options", mountOptions)
-	err = ns.Mount.Mount(serverName, targetPath, "lustre", mountOptions)
+	klog.V(4).InfoS("Mounting volume", "source", source, "targetPath", targetPath, "options", mountOptions)
+	err = ns.Mount.Mount(source, targetPath, "lustre", mountOptions)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount %s at %s: %v", serverName, targetPath, err)
 	}

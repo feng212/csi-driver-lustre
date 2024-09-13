@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: lustre-csi-controller
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: lustre-csi-controller
+  serviceName: "lustre-csi-controller"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: lustre-csi-controller
+    spec:
+      serviceAccountName: lustre-csi-controller-sa
+      containers:
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v4.0.0
+          args:
+            - "-v=2"
+            - "--csi-address=$(ADDRESS)"
+            - "--leader-election"
+            - "--leader-election-namespace=kube-system"
+            - "--extra-create-metadata=true"
+            - "--timeout=1200s"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+          resources:
+            limits:
+              memory: 400Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+        - name: liveness-probe
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.12.0
+          args:
+            - --csi-address=/csi/csi.sock
+            - --probe-timeout=3s
+            - --health-port=29652
+            - --v=2
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+          resources:
+            limits:
+              memory: 100Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+        - name: lustre-csi-plugin
+          image: lustre-csi-driver:v1.0.0
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [ "SYS_ADMIN" ]
+            allowPrivilegeEscalation: true
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-v=5"
+            - "--endpoint=unix:///csi/csi.sock"
+            - "--drivername=lustre.csi.k8s.io"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/lustre.csi.k8s.io/
+            type: DirectoryOrCreate

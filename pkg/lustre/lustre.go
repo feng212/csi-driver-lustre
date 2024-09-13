@@ -24,11 +24,11 @@ const (
 	paramOnDelete        = "ondelete"
 	paramDIRPid          = "projectId"
 	paramDIRUid          = "Uid"
-	pvcNameKey           = "csi.storage.k8s.io/pvc/Name"
-	pvcNamespaceKey      = "csi.storage.k8s.io/pvc/namespace"
+	pvcNameKey           = "csi.storage.k8s.io/pvc.yaml/Name"
+	pvcNamespaceKey      = "csi.storage.k8s.io/pvc.yaml/namespace"
 	pvNameKey            = "csi.storage.k8s.io/pv/Name"
-	pvcNameMetadata      = "${pvc.metadata.Name}"
-	pvcNamespaceMetadata = "${pvc.metadata.namespace}"
+	pvcNameMetadata      = "${pvc.yaml.metadata.Name}"
+	pvcNamespaceMetadata = "${pvc.yaml.metadata.namespace}"
 	pvNameMetadata       = "${pv.metadata.Name}"
 )
 
