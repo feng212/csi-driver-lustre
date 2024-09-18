@@ -4,8 +4,10 @@ metadata:
   name: lustre-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   storageClassName: lustre-sc
   resources:
     requests:
       storage: 10Gi
+  volumeMode: Filesystem
+

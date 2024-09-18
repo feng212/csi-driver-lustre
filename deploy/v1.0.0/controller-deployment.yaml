@@ -14,7 +14,7 @@ spec:
       labels:
         app: lustre-csi-controller
     spec:
-      serviceAccountName: lustre-csi-controller-sa
+      serviceAccountName: lustre-csi-sa
       containers:
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v4.0.0

@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: lustre-csi-controller-sa
+  name: lustre-csi-sa
   namespace: kube-system
 
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: kvm-csi-driver
+  name: lustre-external-provisioner-role
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -56,6 +56,11 @@ rules:
     resources: ["customresourcedefinitions"]
     verbs: ["create", "list", "watch", "delete"]
 
+  # 添加对 leases 资源的权限
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "watch", "list", "create", "update"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -63,9 +68,9 @@ metadata:
   name: lustre-csi-controller-binding
 roleRef:
   kind: ClusterRole
-  name: lustre-csi-controller-role
+  name: lustre-external-provisioner-role
   apiGroup: rbac.authorization.k8s.io
 subjects:
   - kind: ServiceAccount
-    name: lustre-csi-controller-sa
+    name: lustre-csi-sa
     namespace: kube-system

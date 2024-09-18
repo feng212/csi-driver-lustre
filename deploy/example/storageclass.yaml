@@ -4,7 +4,5 @@ metadata:
   name: lustre-sc
 provisioner: lustre.csi.k8s.io
 parameters:
-  server: <lustre-server-ip>
-  base_dir: /base/path
-reclaimPolicy: Delete
-volumeBindingMode: Immediate
+  server: 172.16.100.189@tcp:/testfs
+  base_dir: /tmp

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: lustre-csi-node
+  namespace: kube-system
   labels:
     app: lustre-csi
 spec:
@@ -13,17 +14,24 @@ spec:
       labels:
         app: lustre-csi
     spec:
-      serviceAccountName: csi-node-sa
+      serviceAccountName: lustre-csi-sa
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/os: linux
       containers:
         - name: liveness-probe
           image: registry.k8s.io/sig-storage/livenessprobe:v2.12.0
           args:
             - --csi-address=/csi/csi.sock
             - --probe-timeout=3s
-            - --health-port=29653
+            - --health-port=29666
             - --v=2
           volumeMounts:
-            - name: socket-dir
+            - name: plugin-dir
               mountPath: /csi
           resources:
             limits:
@@ -31,15 +39,25 @@ spec:
             requests:
               cpu: 10m
               memory: 20Mi
-        - name: csi-node-driver-registrar
-          image: k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.5.0
+        - name: node-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.10.0
+          securityContext:
+            privileged: true  # 使该容器为特权模式
           args:
-            - "--v=5"
-            - "--csi-address=$(CSI_ENDPOINT)"
-            - "--kubelet-registration-path=/var/lib/kubelet/plugins/lustre.csi.k8s.io/csi.sock"
+            - --v=2
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)
+          livenessProbe:
+            exec:
+              command:
+                - /csi-node-driver-registrar
+                - --kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)
+                - --mode=kubelet-registration-probe
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
           env:
-            - name: CSI_ENDPOINT
-              value: unix:///csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/csi-nfsplugin/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -47,12 +65,20 @@ spec:
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi
-            - name: kubelet-dir
-              mountPath: /var/lib/kubelet
-              mountPropagation: Bidirectional
+            - name: registration-dir
+              mountPath: /registration
+          resources:
+            limits:
+              memory: 100Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
         - name: lustre-csi-driver
           image: lustre-csi-driver:v1.0.0
+          securityContext:
+            privileged: true  # 使该容器为特权模式
           args:
+            - "-v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(KUBE_NODE_NAME)"
           env:
@@ -68,14 +94,7 @@ spec:
             - name: kubelet-dir
               mountPath: /var/lib/kubelet
               mountPropagation: Bidirectional
-          livenessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - "cat /tmp/lustre-csi-driver-healthz || exit 1"
-            initialDelaySeconds: 10
-            periodSeconds: 30
+
       volumes:
         - name: plugin-dir
           hostPath:
@@ -83,4 +102,9 @@ spec:
             type: DirectoryOrCreate
         - name: kubelet-dir
           hostPath:
-            path: /var/lib/kubelet/
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+          name: registration-dir

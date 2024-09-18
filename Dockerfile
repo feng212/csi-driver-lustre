@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/lustre-csi-driver ./c
 ## docker run -v /root:/mnt --privileged=true --net=host -itd --name rockylinux rockylinux:8  /bin/bash
 #ctr -n k8s.io run -t --privileged --detach docker.io/library/lustre-client:v1.0.0 lustre-client1 /bin/bash
 #ctr -n k8s.io task exec --exec-id exec-1 -t lustre-client1 /bin/bash
-#
+#ctr -n k8s.io i import lustre-csi-driver.tar
 #FROM rockylinux:8
 #WORKDIR /app
 #COPY ./wistor-client-2.15.2_4.18.0-425.3.1_ofed5.8.3_0718.bin /app
