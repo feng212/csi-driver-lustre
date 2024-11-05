@@ -23,18 +23,29 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/lustre-csi-driver ./c
 #docker load -i my-rockylinux-image.tar
 #ctr -n k8s.io images import my-rockylinux-image.tar
 # ctr -n k8s.io images list
-#  ctr -n k8s.io tasks ls
+# ctr -n k8s.io tasks ls
+
+# docker run -itd --privileged --name test   lustre-csi-driver:v1.0.0   /bin/bash
 
 FROM rockylinux:8.7
 
 WORKDIR /app
 
-RUN sed -i 's|^mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/Rocky*
-RUN sed -i 's|^#baseurl=http://dl.rockylinux.org/\$contentdir|baseurl=https://mirrors.aliyun.com/rockylinux|g' /etc/yum.repos.d/Rocky*
-RUN yum clean all
-RUN yum install -y  kmod dracut libnl3
-RUN rpm -ivh --nodeps https://downloads.whamcloud.com/public/lustre/lustre-2.15.5/el8.10/client/RPMS/x86_64/kmod-lustre-client-2.15.5-1.el8.x86_64.rpm
-RUN rpm -ivh --nodeps https://downloads.whamcloud.com/public/lustre/lustre-2.15.5/el8.10/client/RPMS/x86_64/lustre-client-2.15.5-1.el8.x86_64.rpm
+COPY ./rpm /app
+
+RUN sed -i 's|^mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/Rocky* \
+    && sed -i 's|^#baseurl=http://dl.rockylinux.org/\$contentdir|baseurl=https://mirrors.aliyun.com/rockylinux|g' /etc/yum.repos.d/Rocky* \
+    && yum clean all \
+    && yum makecache
+
+# Install dependencies (including libnl3, dracut, and findutils)
+RUN yum install -y kmod dracut libnl3 findutils
+
+# Install Lustre client RPMs (ensure dependencies are resolved)
+RUN rpm -ivh --nodeps ./kmod-lustre-client-2.15.5-1.el8.x86_64.rpm \
+    && rpm -ivh --nodeps ./lustre-client-2.15.5-1.el8.x86_64.rpm
+
+
 
 # 从构建阶段复制编译好的二进制文件
 COPY --from=builder /app/lustre-csi-driver /bin/lustre-csi-driver
