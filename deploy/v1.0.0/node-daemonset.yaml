@@ -57,7 +57,7 @@ spec:
             timeoutSeconds: 15
           env:
             - name: DRIVER_REG_SOCK_PATH
-              value: /var/lib/kubelet/plugins/csi-nfsplugin/csi.sock
+              value: /var/lib/kubelet/plugins/lustre.csi.k8s.io/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -103,8 +103,8 @@ spec:
         - name: kubelet-dir
           hostPath:
             path: /var/lib/kubelet/pods
-            type: Directory
+            type: DirectoryOrCreate
         - hostPath:
             path: /var/lib/kubelet/plugins_registry
-            type: Directory
+            type: DirectoryOrCreate
           name: registration-dir

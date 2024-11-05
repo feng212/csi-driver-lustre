@@ -12,14 +12,29 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/lustre-csi-driver ./c
 #ctr -n k8s.io run -t --privileged --detach docker.io/library/lustre-client:v1.0.0 lustre-client1 /bin/bash
 #ctr -n k8s.io task exec --exec-id exec-1 -t lustre-client1 /bin/bash
 #ctr -n k8s.io i import lustre-csi-driver.tar
-#FROM rockylinux:8
+#FROM   rockylinux:8
 #WORKDIR /app
 #COPY ./wistor-client-2.15.2_4.18.0-425.3.1_ofed5.8.3_0718.bin /app
-#
+#制作镜像
+#docker commit my-rockylinux my-rockylinux-image
+#打包
+#docker save -o my-rockylinux-image.tar my-rockylinux-image
+#加载
+#docker load -i my-rockylinux-image.tar
+#ctr -n k8s.io images import my-rockylinux-image.tar
+# ctr -n k8s.io images list
+#  ctr -n k8s.io tasks ls
 
-FROM lustre-client:v1.0.0
+FROM rockylinux:8.7
 
 WORKDIR /app
+
+RUN sed -i 's|^mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/Rocky*
+RUN sed -i 's|^#baseurl=http://dl.rockylinux.org/\$contentdir|baseurl=https://mirrors.aliyun.com/rockylinux|g' /etc/yum.repos.d/Rocky*
+RUN yum clean all
+RUN yum install -y  kmod dracut libnl3
+RUN rpm -ivh --nodeps https://downloads.whamcloud.com/public/lustre/lustre-2.15.5/el8.10/client/RPMS/x86_64/kmod-lustre-client-2.15.5-1.el8.x86_64.rpm
+RUN rpm -ivh --nodeps https://downloads.whamcloud.com/public/lustre/lustre-2.15.5/el8.10/client/RPMS/x86_64/lustre-client-2.15.5-1.el8.x86_64.rpm
 
 # 从构建阶段复制编译好的二进制文件
 COPY --from=builder /app/lustre-csi-driver /bin/lustre-csi-driver

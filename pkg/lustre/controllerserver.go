@@ -243,13 +243,13 @@ func getVolumeIDFromLustreVol(vol *Lustre) string {
 
 func (cs *ControllerServer) internalMount(ctx context.Context, l *Lustre) error {
 	if l.FSId == "" {
-		return status.Error(codes.InvalidArgument, fmt.Sprintf("%v is a required parameter", l.FSId))
+		return status.Error(codes.InvalidArgument, fmt.Sprintf("fsid: %v is a required parameter", l.FSId))
 	}
 	if l.ServerName == "" {
-		return status.Error(codes.InvalidArgument, fmt.Sprintf("%v is a required parameter", l.ServerName))
+		return status.Error(codes.InvalidArgument, fmt.Sprintf("servername: %v is a required parameter", l.ServerName))
 	}
 	if l.MountPoint == "" {
-		return status.Error(codes.InvalidArgument, fmt.Sprintf("%v is a required parameter", l.MountPoint))
+		return status.Error(codes.InvalidArgument, fmt.Sprintf("mountpoint: %v is a required parameter", l.MountPoint))
 	}
 	// Check if the target is already a mount point
 	isMountPoint, err := l.Mount.IsLikelyNotMountPoint(l.MountPoint)
@@ -259,9 +259,16 @@ func (cs *ControllerServer) internalMount(ctx context.Context, l *Lustre) error 
 	if !isMountPoint {
 		return nil
 	}
+	mountOptions := []string{}
+
+	mountOptions = append(mountOptions, "rw")
 
 	// Perform the mount operation
 	klog.V(4).InfoS("Mounting volume", "volumeId", l.FSId, "target", l.MountPoint)
+	err = l.Mount.Mount(l.ServerName, l.MountPoint, "lustre", mountOptions)
+	if err != nil {
+		return status.Error(codes.Internal, fmt.Sprintf(" mount filed"))
+	}
 	return nil
 }
 

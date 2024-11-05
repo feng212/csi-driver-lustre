@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
+	"log"
 	"os"
 )
 
@@ -46,13 +47,14 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if req.GetVolumeCapability() == nil {
 		return nil, status.Error(codes.InvalidArgument, "Volume capability not provided")
 	}
-
+	log.Println("targetPath:", req.GetTargetPath())
+	log.Println("volumeId:", req.VolumeId)
 	// 处理 ReadOnly 的情况
 	readOnly := req.GetReadonly()
 
 	// 获取卷的上下文，比如 Lustre 文件系统需要的 servername 和 mountname
 	volumeContext := req.GetVolumeContext()
-	serverName, ok := volumeContext["servername"]
+	serverName, ok := volumeContext["server"]
 	if !ok || len(serverName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "servername not provided in volume context")
 	}
@@ -67,6 +69,10 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	targetPath := req.GetTargetPath()
 
+	// 创建目标路径，如果它不存在
+	if err := os.MkdirAll(targetPath, 0750); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create target path %s: %v", targetPath, err)
+	}
 	// 检查目标路径是否已经挂载
 	notMnt, err := ns.Mount.IsLikelyNotMountPoint(targetPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -75,11 +81,6 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if !notMnt {
 		klog.V(4).InfoS("Volume is already mounted", "targetPath", targetPath)
 		return &csi.NodePublishVolumeResponse{}, nil
-	}
-
-	// 创建目标路径，如果它不存在
-	if err := os.MkdirAll(targetPath, 0750); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create target path %s: %v", targetPath, err)
 	}
 
 	// 挂载选项

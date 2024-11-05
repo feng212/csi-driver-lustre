@@ -8,6 +8,8 @@ spec:
   containers:
     - name: nginx # 容器的名称
       image: nginx # 指定容器的镜像
+      securityContext:
+        privileged: true
       imagePullPolicy: IfNotPresent # 镜像拉取策略，指定如果本地有就用本地的，如果没有就拉取远程的
       volumeMounts:
         - name: pvc-config
