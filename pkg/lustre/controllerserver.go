@@ -50,7 +50,7 @@ type ControllerServer struct {
 }
 
 func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).InfoS("CreateVolume: called", "volumeName", req.GetName(), "args", *req)
+	klog.V(5).InfoS("CreateVolume: called", "volumeName", req.GetName(), "args", *req)
 
 	volName := req.GetName()
 	if len(volName) == 0 {
@@ -70,6 +70,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	if ok := cs.Driver.VolumeLocks.Insert(volName); !ok {
 		msg := fmt.Sprintf("Create volume request for %s is already in progress", volName)
+
 		return nil, status.Error(codes.Aborted, msg)
 	}
 
@@ -110,6 +111,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if err := os.MkdirAll(internalVolumePath, 0777); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to make subdirectory: %v", err)
 	}
+	klog.V(5).InfoS("CreateMount:", "volumeName", lustre.MountPoint, lustre.SubDir)
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
@@ -145,14 +147,14 @@ func (cs *ControllerServer) setLustreParameters(volParam map[string]string, lust
 
 func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	volID := req.GetVolumeId()
-	klog.V(4).InfoS("DeleteVolume: called", "volumeId", volID)
+	klog.V(5).InfoS("DeleteVolume: called", "volumeId", volID)
 
 	if len(volID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
 	}
 
 	// Perform any necessary cleanup here
-	klog.V(4).InfoS("DeleteVolume: volume deleted successfully", "volumeId", volID)
+	klog.V(5).InfoS("DeleteVolume: volume deleted successfully", "volumeId", volID)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -264,7 +266,7 @@ func (cs *ControllerServer) internalMount(ctx context.Context, l *Lustre) error 
 	mountOptions = append(mountOptions, "rw")
 
 	// Perform the mount operation
-	klog.V(4).InfoS("Mounting volume", "volumeId", l.FSId, "target", l.MountPoint)
+	klog.V(5).InfoS("Mounting volume", "volumeId", l.FSId, "target", l.MountPoint)
 	err = l.Mount.Mount(l.ServerName, l.MountPoint, "lustre", mountOptions)
 	if err != nil {
 		return status.Error(codes.Internal, fmt.Sprintf(" mount filed"))

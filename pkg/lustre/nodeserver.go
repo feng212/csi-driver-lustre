@@ -29,13 +29,13 @@ func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 // NodeUnstageVolume removes the staged volume. This can be used to clean up staged resources.
 func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	klog.V(4).InfoS("NodeUnstageVolume called", "volumeId", req.GetVolumeId())
+	klog.V(5).InfoS("NodeUnstageVolume called", "volumeId", req.GetVolumeId())
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
 // NodePublishVolume mounts the Lustre volume to the target path on the node.
 func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	klog.V(4).InfoS("NodePublishVolume called", "volumeId", req.GetVolumeId(), "targetPath", req.GetTargetPath())
+	klog.V(5).InfoS("NodePublishVolume called", "volumeId", req.GetVolumeId(), "targetPath", req.GetTargetPath())
 
 	// 校验请求参数
 	if len(req.GetVolumeId()) == 0 {
@@ -79,7 +79,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Errorf(codes.Internal, "could not determine if %s is a mount point: %v", targetPath, err)
 	}
 	if !notMnt {
-		klog.V(4).InfoS("Volume is already mounted", "targetPath", targetPath)
+		klog.V(5).InfoS("Volume is already mounted", "targetPath", targetPath)
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
@@ -90,19 +90,19 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	// 执行挂载操作
-	klog.V(4).InfoS("Mounting volume", "source", source, "targetPath", targetPath, "options", mountOptions)
+	klog.V(5).InfoS("Mounting volume", "source", source, "targetPath", targetPath, "options", mountOptions)
 	err = ns.Mount.Mount(source, targetPath, "lustre", mountOptions)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount %s at %s: %v", serverName, targetPath, err)
 	}
 
-	klog.V(4).InfoS("NodePublishVolume successful", "volumeId", req.GetVolumeId(), "targetPath", targetPath)
+	klog.V(5).InfoS("NodePublishVolume successful", "volumeId", req.GetVolumeId(), "targetPath", targetPath)
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
 // NodeUnpublishVolume unmounts the Lustre volume from the target path.
 func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	klog.V(4).InfoS("NodeUnpublishVolume called", "volumeId", req.GetVolumeId(), "targetPath", req.GetTargetPath())
+	klog.V(5).InfoS("NodeUnpublishVolume called", "volumeId", req.GetVolumeId(), "targetPath", req.GetTargetPath())
 
 	targetPath := req.GetTargetPath()
 
@@ -112,7 +112,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Errorf(codes.Internal, "failed to check if targetPath %s is a mount point: %v", targetPath, err)
 	}
 	if notMnt {
-		klog.V(4).InfoS("Volume is not mounted", "targetPath", targetPath)
+		klog.V(5).InfoS("Volume is not mounted", "targetPath", targetPath)
 		return &csi.NodeUnpublishVolumeResponse{}, nil
 	}
 
@@ -121,7 +121,7 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Errorf(codes.Internal, "failed to unmount targetPath %s: %v", targetPath, err)
 	}
 
-	klog.V(4).InfoS("NodeUnpublishVolume successful", "volumeId", req.GetVolumeId(), "targetPath", targetPath)
+	klog.V(5).InfoS("NodeUnpublishVolume successful", "volumeId", req.GetVolumeId(), "targetPath", targetPath)
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 

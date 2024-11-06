@@ -13,6 +13,8 @@ spec:
       labels:
         app: lustre-csi-controller
     spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: lustre-csi-sa
       containers:
         - name: csi-provisioner
