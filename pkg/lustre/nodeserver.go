@@ -70,7 +70,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	targetPath := req.GetTargetPath()
 
 	// 创建目标路径，如果它不存在
-	if err := os.MkdirAll(targetPath, 0750); err != nil {
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create target path %s: %v", targetPath, err)
 	}
 	// 检查目标路径是否已经挂载

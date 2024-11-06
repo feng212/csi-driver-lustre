@@ -92,7 +92,7 @@ spec:
             - name: plugin-dir
               mountPath: /csi
             - name: kubelet-dir
-              mountPath: /var/lib/kubelet
+              mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
 
       volumes:
